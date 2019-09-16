@@ -1,5 +1,9 @@
 #pragma once
 #include <OpenglWidget.h>
+#include <vector>
+#include <utility>
+
+using namespace std;
 
 class Stroke { // Data structure for holding painterly strokes.
 public:
@@ -75,7 +79,6 @@ protected:
 	QImage mImageDst;
 
 	void createScene(void);
-
 	void renew();
 
 	bool bRenew;

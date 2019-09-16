@@ -1,6 +1,7 @@
 #include "Application.h"
 #include "qt_opengl_framework.h"
-#include <vector>
+#include <cmath>
+#include <map>
 
 Application::Application()
 {
@@ -10,6 +11,7 @@ Application::~Application()
 {
 
 }
+
 //****************************************************************************
 //
 // * 初始畫面，並顯示Ntust.png圖檔
@@ -156,7 +158,7 @@ void Application::Gray()
 		{
 			int offset_rgb = i*img_width*3+j*3;
 			int offset_rgba = i*img_width*4+j*4;
-			unsigned char gray = 0.3 * rgb[offset_rgb + rr] + 0.59 * rgb[offset_rgb + gg] + 0.11 * rgb[offset_rgb + bb];
+			unsigned char gray = 0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb];
 
 			for (int k=0; k<3; k++)
 				img_data[offset_rgba+k] = gray;
@@ -178,6 +180,22 @@ void Application::Quant_Uniform()
 {
 	unsigned char *rgb = this->To_RGB();
 
+	for (int i = 0; i < img_height; i++)
+	{
+		for (int j = 0; j < img_width; j++)
+		{
+			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_rgba = i * img_width * 4 + j * 4;
+
+			int level[] = { 4, 8, 8 };
+
+			for (int k = 0; k < 3; k++) {
+				int q = 256 / level[k];
+				img_data[offset_rgba + k] = (rgb[offset_rgb + k] / q) * q;
+			}
+			img_data[offset_rgba + aa] = WHITE;
+		}
+	}
 
 	delete[] rgb;
 	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
@@ -193,7 +211,69 @@ void Application::Quant_Populosity()
 {
 	unsigned char *rgb = this->To_RGB();
 
+	vector<pair<int, int>> list = vector<pair<int, int>>(16777216, pair<int, int>(0, 0));
+	for (int i = 0; i < img_height; i++)
+	{
+		for (int j = 0; j < img_width; j++)
+		{
+			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_rgba = i * img_width * 4 + j * 4;
 
+			int color = 0;
+			for (int k = 0; k < 3; k++) {
+				int q = 256 / 32;
+				color *= 256;
+				color += (rgb[offset_rgb + k] / q) * q;
+			}
+			list[color].first = color;
+			list[color].second++;
+		}
+	}
+	sort(list.begin(), list.end(), [](const pair<int, int>& a, const pair<int, int>& b) {
+		return a.second > b.second;
+	});
+	list.resize(256);
+
+	map<int, int> dict;
+	for (int i = 0; i < img_height; i++)
+	{
+		for (int j = 0; j < img_width; j++)
+		{
+			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_rgba = i * img_width * 4 + j * 4;
+
+			double mDist = DBL_MAX;
+			int mIdx = 0;
+			int color[3];
+			int c = rgb[offset_rgb + bb] * 256 * 256 + rgb[offset_rgb + gg] * 256 + rgb[offset_rgb + rr];
+			if (dict.find(c) != dict.end()) {
+				color[0] = dict[c] / 256 / 256;
+				color[1] = (dict[c] / 256) % 256;
+				color[2] = dict[c] % 256;
+			}
+			else {
+				for (int k = 0; k < 256; k++) {
+					int b = list[k].first / 256 / 256;
+					int g = (list[k].first / 256) % 256;
+					int r = list[k].first % 256;
+					int dist = sqrt(pow(b - rgb[offset_rgb + bb], 2) + pow(g - rgb[offset_rgb + gg], 2) + pow(r - rgb[offset_rgb + rr], 2));
+					if (dist < mDist) {
+						mDist = dist;
+						color[0] = b;
+						color[1] = g;
+						color[2] = r;
+						mIdx = k;
+					}
+				}
+				dict[c] = list[mIdx].first;
+			}
+
+			for (int k = 0; k < 3; k++) {
+				img_data[offset_rgba + k] = color[k];
+			}
+			img_data[offset_rgba + aa] = WHITE;
+		}
+	}
 
 	delete[] rgb;
 	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
