@@ -2,10 +2,12 @@
 #include "qt_opengl_framework.h"
 #include <cmath>
 #include <map>
+#include <ctime>
+#include <cstdlib>
 
 Application::Application()
 {
-
+	srand(time(NULL));
 }
 Application::~Application()
 {
@@ -291,7 +293,24 @@ void Application::Dither_Threshold()
 {
 	unsigned char *rgb = this->To_RGB();
 
-
+	for (int i = 0; i < img_height; i++)
+	{
+		for (int j = 0; j < img_width; j++)
+		{
+			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_rgba = i * img_width * 4 + j * 4;
+			unsigned char gray = 0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb];
+			if (gray < 127) {
+				gray = BLACK;
+			}
+			else {
+				gray = WHITE;
+			}
+			for (int k = 0; k < 3; k++)
+				img_data[offset_rgba + k] = gray;
+			img_data[offset_rgba + aa] = WHITE;
+		}
+	}
 
 	delete[] rgb;
 	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
@@ -306,7 +325,25 @@ void Application::Dither_Random()
 {
 	unsigned char *rgb = this->To_RGB();
 
-
+	for (int i = 0; i < img_height; i++)
+	{
+		for (int j = 0; j < img_width; j++)
+		{
+			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_rgba = i * img_width * 4 + j * 4;
+			double r = rand() % 5 - 2;
+			double gray = 0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb];
+			if (gray / 256 + r / 10 < 0.5) {
+				gray = BLACK;
+			}
+			else {
+				gray = WHITE;
+			}
+			for (int k = 0; k < 3; k++)
+				img_data[offset_rgba + k] = gray;
+			img_data[offset_rgba + aa] = WHITE;
+		}
+	}
 
 	delete[] rgb;
 	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
@@ -322,8 +359,6 @@ void Application::Dither_FS()
 {
 	unsigned char *rgb = this->To_RGB();
 
-
-
 	delete[] rgb;
 	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
 	renew();
@@ -338,7 +373,35 @@ void Application::Dither_Bright()
 {
 	unsigned char *rgb = this->To_RGB();
 
-
+	double avg = 0;
+	for (int i = 0; i < img_height; i++)
+	{
+		for (int j = 0; j < img_width; j++)
+		{
+			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_rgba = i * img_width * 4 + j * 4;
+			avg += 0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb];
+		}
+	}
+	avg /= img_height * img_width;
+	for (int i = 0; i < img_height; i++)
+	{
+		for (int j = 0; j < img_width; j++)
+		{
+			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_rgba = i * img_width * 4 + j * 4;
+			unsigned char gray = 0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb];
+			if (gray < avg) {
+				gray = BLACK;
+			}
+			else {
+				gray = WHITE;
+			}
+			for (int k = 0; k < 3; k++)
+				img_data[offset_rgba + k] = gray;
+			img_data[offset_rgba + aa] = WHITE;
+		}
+	}
 
 	delete[] rgb;
 	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
@@ -353,7 +416,31 @@ void Application::Dither_Cluster()
 {
 	unsigned char *rgb = this->To_RGB();
 
+	double mat[4][4] = {
+		{0.7059, 0.3529, 0.5882, 0.2353},
+		{0.0588, 0.9412, 0.8235, 0.4118},
+		{0.4706, 0.7647, 0.8824, 0.1176},
+		{0.1765, 0.5294, 0.2941, 0.6471}
+	};
 
+	for (int i = 0; i < img_height; i++)
+	{
+		for (int j = 0; j < img_width; j++)
+		{
+			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_rgba = i * img_width * 4 + j * 4;
+			double gray = 0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb];
+			if (gray / 256 < mat[j % 4][i % 4]) {
+				gray = BLACK;
+			}
+			else {
+				gray = WHITE;
+			}
+			for (int k = 0; k < 3; k++)
+				img_data[offset_rgba + k] = gray;
+			img_data[offset_rgba + aa] = WHITE;
+		}
+	}
 
 	delete[] rgb;
 	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
