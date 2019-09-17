@@ -299,13 +299,8 @@ void Application::Dither_Threshold()
 		{
 			int offset_rgb = i * img_width * 3 + j * 3;
 			int offset_rgba = i * img_width * 4 + j * 4;
-			unsigned char gray = 0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb];
-			if (gray < 127) {
-				gray = BLACK;
-			}
-			else {
-				gray = WHITE;
-			}
+			unsigned char gray = (0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb]) >= 128 ? WHITE : BLACK;
+			
 			for (int k = 0; k < 3; k++)
 				img_data[offset_rgba + k] = gray;
 			img_data[offset_rgba + aa] = WHITE;
@@ -331,14 +326,7 @@ void Application::Dither_Random()
 		{
 			int offset_rgb = i * img_width * 3 + j * 3;
 			int offset_rgba = i * img_width * 4 + j * 4;
-			double r = rand() % 5 - 2;
-			double gray = 0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb];
-			if (gray / 256 + r / 10 < 0.5) {
-				gray = BLACK;
-			}
-			else {
-				gray = WHITE;
-			}
+			unsigned char gray = (0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb] + rand() % 102 - 51) >= 128 ? WHITE : BLACK;
 			for (int k = 0; k < 3; k++)
 				img_data[offset_rgba + k] = gray;
 			img_data[offset_rgba + aa] = WHITE;
@@ -359,6 +347,39 @@ void Application::Dither_FS()
 {
 	unsigned char *rgb = this->To_RGB();
 
+	vector<double> gray;
+	for (int i = 0; i < img_height; i++)
+	{
+		for (int j = 0; j < img_width; j++)
+		{
+			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_rgba = i * img_width * 4 + j * 4;
+			gray.push_back(0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb]);
+		}
+	}
+	double distribution[] = { 7.0 / 16.0, 3.0 / 16.0, 5.0 / 16.0, 1.0 / 16.0 };
+	int x[] = { 1, -1, 0, 1 };
+	int y[] = { 0, 1, 1, 1 };
+	for (int i = 0; i < img_height; i++)
+	{
+		for (int j = 0; j < img_width; j++)
+		{
+			int offset_gray = i * img_width + j;
+			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_rgba = i * img_width * 4 + j * 4;
+			int value = gray[offset_gray] >= 128 ? WHITE : BLACK;
+			double error = gray[offset_gray] - value;
+			for (int k = 0; k < 3; k++) 
+				img_data[offset_rgba + k] = value;
+			img_data[offset_rgba + aa] = WHITE;
+			for (int k = 0; k < 4; k++) {
+				if (i + y[k] >= 0 && i + y[k] < img_height && j + x[k] >= 0 && j + x[k] < img_width) {
+					gray[(i + y[k]) * img_width + j + x[k]] += error * distribution[k];
+				}
+			}
+		}
+	}
+
 	delete[] rgb;
 	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
 	renew();
@@ -374,16 +395,7 @@ void Application::Dither_Bright()
 	unsigned char *rgb = this->To_RGB();
 
 	double avg = 0;
-	for (int i = 0; i < img_height; i++)
-	{
-		for (int j = 0; j < img_width; j++)
-		{
-			int offset_rgb = i * img_width * 3 + j * 3;
-			int offset_rgba = i * img_width * 4 + j * 4;
-			avg += 0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb];
-		}
-	}
-	avg /= img_height * img_width;
+	vector<int> brightness;
 	for (int i = 0; i < img_height; i++)
 	{
 		for (int j = 0; j < img_width; j++)
@@ -391,12 +403,21 @@ void Application::Dither_Bright()
 			int offset_rgb = i * img_width * 3 + j * 3;
 			int offset_rgba = i * img_width * 4 + j * 4;
 			unsigned char gray = 0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb];
-			if (gray < avg) {
-				gray = BLACK;
-			}
-			else {
-				gray = WHITE;
-			}
+			brightness.push_back(gray);
+			avg += gray;
+		}
+	}
+	sort(brightness.begin(), brightness.end());
+	avg /= img_height * img_width;
+	int threshold = brightness[(int)((1 - avg / 255) * (img_height * img_width - 1))];
+	for (int i = 0; i < img_height; i++)
+	{
+		for (int j = 0; j < img_width; j++)
+		{
+			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_rgba = i * img_width * 4 + j * 4;
+			unsigned char gray = (0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb]) >= threshold ? WHITE : BLACK;
+			
 			for (int k = 0; k < 3; k++)
 				img_data[offset_rgba + k] = gray;
 			img_data[offset_rgba + aa] = WHITE;
@@ -429,13 +450,8 @@ void Application::Dither_Cluster()
 		{
 			int offset_rgb = i * img_width * 3 + j * 3;
 			int offset_rgba = i * img_width * 4 + j * 4;
-			double gray = 0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb];
-			if (gray / 256 < mat[j % 4][i % 4]) {
-				gray = BLACK;
-			}
-			else {
-				gray = WHITE;
-			}
+			double gray = ((0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb]) / 255) < mat[i % 4][j % 4] ? BLACK : WHITE;
+			
 			for (int k = 0; k < 3; k++)
 				img_data[offset_rgba + k] = gray;
 			img_data[offset_rgba + aa] = WHITE;
