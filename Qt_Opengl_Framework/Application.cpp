@@ -358,23 +358,45 @@ void Application::Dither_FS()
 		}
 	}
 	double distribution[] = { 7.0 / 16.0, 3.0 / 16.0, 5.0 / 16.0, 1.0 / 16.0 };
-	int x[] = { 1, -1, 0, 1 };
-	int y[] = { 0, 1, 1, 1 };
 	for (int i = 0; i < img_height; i++)
 	{
-		for (int j = 0; j < img_width; j++)
-		{
-			int offset_gray = i * img_width + j;
-			int offset_rgb = i * img_width * 3 + j * 3;
-			int offset_rgba = i * img_width * 4 + j * 4;
-			int value = gray[offset_gray] >= 128 ? WHITE : BLACK;
-			double error = gray[offset_gray] - value;
-			for (int k = 0; k < 3; k++) 
-				img_data[offset_rgba + k] = value;
-			img_data[offset_rgba + aa] = WHITE;
-			for (int k = 0; k < 4; k++) {
-				if (i + y[k] >= 0 && i + y[k] < img_height && j + x[k] >= 0 && j + x[k] < img_width) {
-					gray[(i + y[k]) * img_width + j + x[k]] += error * distribution[k];
+		if (i % 2) {
+			int x[] = { -1, 1, 0, -1 };
+			int y[] = { 0, 1, 1, 1 };
+			for (int j = img_width - 1; j >= 0; j--)
+			{
+				int offset_gray = i * img_width + j;
+				int offset_rgb = i * img_width * 3 + j * 3;
+				int offset_rgba = i * img_width * 4 + j * 4;
+				int value = gray[offset_gray] >= 128 ? WHITE : BLACK;
+				double error = gray[offset_gray] - value;
+				for (int k = 0; k < 3; k++)
+					img_data[offset_rgba + k] = value;
+				img_data[offset_rgba + aa] = WHITE;
+				for (int k = 0; k < 4; k++) {
+					if (i + y[k] >= 0 && i + y[k] < img_height && j + x[k] >= 0 && j + x[k] < img_width) {
+						gray[(i + y[k]) * img_width + j + x[k]] += error * distribution[k];
+					}
+				}
+			}
+		}
+		else {
+			int x[] = { 1, -1, 0, 1 };
+			int y[] = { 0, 1, 1, 1 };
+			for (int j = 0; j < img_width; j++)
+			{
+				int offset_gray = i * img_width + j;
+				int offset_rgb = i * img_width * 3 + j * 3;
+				int offset_rgba = i * img_width * 4 + j * 4;
+				int value = gray[offset_gray] >= 128 ? WHITE : BLACK;
+				double error = gray[offset_gray] - value;
+				for (int k = 0; k < 3; k++) 
+					img_data[offset_rgba + k] = value;
+				img_data[offset_rgba + aa] = WHITE;
+				for (int k = 0; k < 4; k++) {
+					if (i + y[k] >= 0 && i + y[k] < img_height && j + x[k] >= 0 && j + x[k] < img_width) {
+						gray[(i + y[k]) * img_width + j + x[k]] += error * distribution[k];
+					}
 				}
 			}
 		}
@@ -473,7 +495,47 @@ void Application::Dither_Color()
 {
 	unsigned char *rgb = this->To_RGB();
 
+	vector<double> RGB;
+	for (int i = 0; i < img_height; i++)
+	{
+		for (int j = 0; j < img_width; j++)
+		{
+			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_rgba = i * img_width * 4 + j * 4;
+			for (int k = 0; k < 3; k++) {
+				RGB.push_back(rgb[offset_rgb + k]);
+			}
+		}
+	}
 
+	double distribution[] = { 7.0 / 16.0, 3.0 / 16.0, 5.0 / 16.0, 1.0 / 16.0 };
+	int x[] = { 1, -1, 0, 1 };
+	int y[] = { 0, 1, 1, 1 };
+	int level[] = { 4, 8, 8 };
+	for (int i = 0; i < img_height; i++)
+	{
+		for (int j = 0; j < img_width; j++)
+		{
+			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_rgba = i * img_width * 4 + j * 4;
+			int color[3];
+			double error[3];
+			for (int k = 0; k < 3; k++) {
+				int q = 256 / level[k];
+				color[k] = (int)(RGB[offset_rgb + k] / q) * q;
+				error[k] = RGB[offset_rgb + k] - color[k];
+				img_data[offset_rgba + k] = color[k];
+			}
+			img_data[offset_rgba + aa] = WHITE;
+			for (int k = 0; k < 4; k++) {
+				if (i + y[k] >= 0 && i + y[k] < img_height && j + x[k] >= 0 && j + x[k] < img_width) {
+					for (int l = 0; l < 3; l++) {
+						RGB[(i + y[k]) * img_width + (j + x[k]) * 3 + l] += error[l] * distribution[k];
+					}
+				}
+			}
+		}
+	}
 
 	delete[] rgb;
 	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
