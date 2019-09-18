@@ -2,3 +2,8 @@
 x64/
 Win32/
 Debug/
+
+*.sln
+*.vcxproj
+*.vcxproj.user
+*.vscode/
