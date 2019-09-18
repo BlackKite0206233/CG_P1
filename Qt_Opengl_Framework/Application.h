@@ -80,6 +80,7 @@ protected:
 
 	void createScene(void);
 	void renew();
+	unsigned char toGray(unsigned char*, int);
 
 	bool bRenew;
 

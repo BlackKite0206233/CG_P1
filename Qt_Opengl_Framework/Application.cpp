@@ -143,6 +143,10 @@ void Application::RGBA_To_RGB( unsigned char *rgba, unsigned char *rgb )
 }
 //------------------------Color------------------------
 
+unsigned char Application::toGray(unsigned char* rgb, int offset) {
+	return 0.299 * rgb[offset + rr] + 0.587 * rgb[offset + gg] + 0.114 * rgb[offset + bb];
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 //  Convert image to grayscale.  Red, green, and blue channels should all 
@@ -160,7 +164,7 @@ void Application::Gray()
 		{
 			int offset_rgb = i*img_width*3+j*3;
 			int offset_rgba = i*img_width*4+j*4;
-			unsigned char gray = 0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb];
+			unsigned char gray = toGray(rgb, offset_rgb);
 
 			for (int k=0; k<3; k++)
 				img_data[offset_rgba+k] = gray;
@@ -314,7 +318,7 @@ void Application::Dither_Threshold()
 		{
 			int offset_rgb = i * img_width * 3 + j * 3;
 			int offset_rgba = i * img_width * 4 + j * 4;
-			unsigned char gray = (0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb]) >= 128 ? WHITE : BLACK;
+			unsigned char gray = toGray(rgb, offset_rgb) >= 128 ? WHITE : BLACK;
 			
 			for (int k = 0; k < 3; k++)
 				img_data[offset_rgba + k] = gray;
@@ -341,7 +345,7 @@ void Application::Dither_Random()
 		{
 			int offset_rgb = i * img_width * 3 + j * 3;
 			int offset_rgba = i * img_width * 4 + j * 4;
-			unsigned char gray = (0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb] + rand() % 102 - 51) >= 128 ? WHITE : BLACK;
+			unsigned char gray = (toGray(rgb, offset_rgb) + rand() % 102 - 51) >= 128 ? WHITE : BLACK;
 			for (int k = 0; k < 3; k++)
 				img_data[offset_rgba + k] = gray;
 			img_data[offset_rgba + aa] = WHITE;
@@ -368,49 +372,32 @@ void Application::Dither_FS()
 		for (int j = 0; j < img_width; j++)
 		{
 			int offset_rgb = i * img_width * 3 + j * 3;
-			gray.push_back(0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb]);
+			gray.push_back(toGray(rgb, offset_rgb));
 		}
 	}
 	double distribution[] = { 7.0 / 16.0, 3.0 / 16.0, 5.0 / 16.0, 1.0 / 16.0 };
 	for (int i = 0; i < img_height; i++)
 	{
+		int x[] = { 1, -1, 0, 1 };
+		int y[] = { 0, 1, 1, 1 };
 		if (i % 2) {
-			int x[] = { -1, 1, 0, -1 };
-			int y[] = { 0, 1, 1, 1 };
-			for (int j = img_width - 1; j >= 0; j--)
-			{
-				int offset_gray = i * img_width + j;
-				int offset_rgb = i * img_width * 3 + j * 3;
-				int offset_rgba = i * img_width * 4 + j * 4;
-				int value = gray[offset_gray] >= 128 ? WHITE : BLACK;
-				double error = gray[offset_gray] - value;
-				for (int k = 0; k < 3; k++)
-					img_data[offset_rgba + k] = value;
-				img_data[offset_rgba + aa] = WHITE;
-				for (int k = 0; k < 4; k++) {
-					if (i + y[k] >= 0 && i + y[k] < img_height && j + x[k] >= 0 && j + x[k] < img_width) {
-						gray[(i + y[k]) * img_width + j + x[k]] += error * distribution[k];
-					}
-				}
+			for (int j = 0; j < 4; j++) {
+				x[j] *= -1;
 			}
 		}
-		else {
-			int x[] = { 1, -1, 0, 1 };
-			int y[] = { 0, 1, 1, 1 };
-			for (int j = 0; j < img_width; j++)
-			{
-				int offset_gray = i * img_width + j;
-				int offset_rgb = i * img_width * 3 + j * 3;
-				int offset_rgba = i * img_width * 4 + j * 4;
-				int value = gray[offset_gray] >= 128 ? WHITE : BLACK;
-				double error = gray[offset_gray] - value;
-				for (int k = 0; k < 3; k++) 
-					img_data[offset_rgba + k] = value;
-				img_data[offset_rgba + aa] = WHITE;
-				for (int k = 0; k < 4; k++) {
-					if (i + y[k] >= 0 && i + y[k] < img_height && j + x[k] >= 0 && j + x[k] < img_width) {
-						gray[(i + y[k]) * img_width + j + x[k]] += error * distribution[k];
-					}
+		for (int j = ((i % 2) ? img_width - 1 : 0); (i % 2) && j >= 0 || (!i % 2) && j < img_width; j += ((i % 2) ? 1 : 1))
+		{
+			int offset_gray = i * img_width + j;
+			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_rgba = i * img_width * 4 + j * 4;
+			unsigned char value = gray[offset_gray] >= 128 ? WHITE : BLACK;
+			double error = gray[offset_gray] - value;
+			for (int k = 0; k < 3; k++)
+				img_data[offset_rgba + k] = value;
+			img_data[offset_rgba + aa] = WHITE;
+			for (int k = 0; k < 4; k++) {
+				if (i + y[k] >= 0 && i + y[k] < img_height && j + x[k] >= 0 && j + x[k] < img_width) {
+					gray[(i + y[k]) * img_width + j + x[k]] += error * distribution[k];
 				}
 			}
 		}
@@ -437,7 +424,7 @@ void Application::Dither_Bright()
 		for (int j = 0; j < img_width; j++)
 		{
 			int offset_rgb = i * img_width * 3 + j * 3;
-			unsigned char gray = 0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb];
+			unsigned char gray = toGray(rgb, offset_rgb);
 			brightness.push_back(gray);
 			avg += gray;
 		}
@@ -451,7 +438,7 @@ void Application::Dither_Bright()
 		{
 			int offset_rgb = i * img_width * 3 + j * 3;
 			int offset_rgba = i * img_width * 4 + j * 4;
-			unsigned char gray = (0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb]) >= threshold ? WHITE : BLACK;
+			unsigned char gray = toGray(rgb, offset_rgb) >= threshold ? WHITE : BLACK;
 			
 			for (int k = 0; k < 3; k++)
 				img_data[offset_rgba + k] = gray;
@@ -485,7 +472,7 @@ void Application::Dither_Cluster()
 		{
 			int offset_rgb = i * img_width * 3 + j * 3;
 			int offset_rgba = i * img_width * 4 + j * 4;
-			double gray = ((0.299 * rgb[offset_rgb + rr] + 0.587 * rgb[offset_rgb + gg] + 0.114 * rgb[offset_rgb + bb]) / 255) < mat[i % 4][j % 4] ? BLACK : WHITE;
+			unsigned char gray = ((double)toGray(rgb, offset_rgb) / 255) < mat[i % 4][j % 4] ? BLACK : WHITE;
 			
 			for (int k = 0; k < 3; k++)
 				img_data[offset_rgba + k] = gray;
@@ -524,52 +511,30 @@ void Application::Dither_Color()
 	int level[] = { 4, 8, 8 };
 	for (int i = 0; i < img_height; i++)
 	{
+		int x[] = { 1, -1, 0, 1 };
+		int y[] = { 0, 1, 1, 1 };
 		if (i % 2) {
-			int x[] = { -1, 1, 0, -1 };
-			int y[] = { 0, 1, 1, 1 };
-			for (int j = img_width - 1; j >= 0; j--)
-			{
-				int offset_rgb = i * img_width * 3 + j * 3;
-				int offset_rgba = i * img_width * 4 + j * 4;
-				int color[3];
-				double error[3];
-				for (int k = 0; k < 3; k++) {
-					int q = 256 / level[k];
-					color[k] = ((int)RGB[offset_rgb + k] / q) * q;
-					error[k] = RGB[offset_rgb + k] - color[k];
-					img_data[offset_rgba + k] = color[k];
-				}
-				img_data[offset_rgba + aa] = WHITE;
-				for (int k = 0; k < 4; k++) {
-					if (i + y[k] >= 0 && i + y[k] < img_height && j + x[k] >= 0 && j + x[k] < img_width) {
-						for (int l = 0; l < 3; l++) {
-							RGB[(i + y[k]) * img_width * 3 + (j + x[k]) * 3 + l] += error[l] * distribution[k];
-						}
-					}
-				}
+			for (int j = 0; j < 4; j++) {
+				x[j] *= -1;
 			}
 		}
-		else {
-			int x[] = { 1, -1, 0, 1 };
-			int y[] = { 0, 1, 1, 1 };
-			for (int j = 0; j < img_width; j++)
-			{
-				int offset_rgb = i * img_width * 3 + j * 3;
-				int offset_rgba = i * img_width * 4 + j * 4;
-				int color[3];
-				double error[3];
-				for (int k = 0; k < 3; k++) {
-					int q = 256 / level[k];
-					color[k] = ((int)RGB[offset_rgb + k] / q) * q;
-					error[k] = RGB[offset_rgb + k] - color[k];
-					img_data[offset_rgba + k] = color[k];
-				}
-				img_data[offset_rgba + aa] = WHITE;
-				for (int k = 0; k < 4; k++) {
-					if (i + y[k] >= 0 && i + y[k] < img_height && j + x[k] >= 0 && j + x[k] < img_width) {
-						for (int l = 0; l < 3; l++) {
-							RGB[(i + y[k]) * img_width * 3 + (j + x[k]) * 3 + l] += error[l] * distribution[k];
-						}
+		for (int j = ((i % 2) ? img_width - 1 : 0); (i % 2) && j >= 0 || (!i % 2) && j < img_width; j += ((i % 2) ? 1 : 1))
+		{
+			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_rgba = i * img_width * 4 + j * 4;
+			unsigned char color[3];
+			double error[3];
+			for (int k = 0; k < 3; k++) {
+				int q = 256 / level[k];
+				color[k] = ((unsigned char)RGB[offset_rgb + k] / q) * q;
+				error[k] = RGB[offset_rgb + k] - color[k];
+				img_data[offset_rgba + k] = color[k];
+			}
+			img_data[offset_rgba + aa] = WHITE;
+			for (int k = 0; k < 4; k++) {
+				if (i + y[k] >= 0 && i + y[k] < img_height && j + x[k] >= 0 && j + x[k] < img_width) {
+					for (int l = 0; l < 3; l++) {
+						RGB[(i + y[k]) * img_width * 3 + (j + x[k]) * 3 + l] += error[l] * distribution[k];
 					}
 				}
 			}
