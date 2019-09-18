@@ -213,30 +213,40 @@ void Application::Quant_Populosity()
 {
 	unsigned char *rgb = this->To_RGB();
 
-	vector<pair<int, int>> list = vector<pair<int, int>>(16777216, pair<int, int>(0, 0));
+	vector<pair<int, int>> list = vector<pair<int, int>>(65536, pair<int, int>(0, 0));
+
 	for (int i = 0; i < img_height; i++)
 	{
 		for (int j = 0; j < img_width; j++)
 		{
 			int offset_rgb = i * img_width * 3 + j * 3;
-			int offset_rgba = i * img_width * 4 + j * 4;
 
 			int color = 0;
+
 			for (int k = 0; k < 3; k++) {
-				int q = 256 / 32;
-				color *= 256;
-				color += (rgb[offset_rgb + k] / q) * q;
+				color <<= 5;
+				color += ((rgb[offset_rgb + k] & 0b11111000) >> 3);
 			}
+
 			list[color].first = color;
 			list[color].second++;
 		}
 	}
-	sort(list.begin(), list.end(), [](const pair<int, int>& a, const pair<int, int>& b) {
+
+	sort(list.begin(), list.begin() + 32768, [](const pair<int, int>& a, const pair<int, int>& b) {
 		return a.second > b.second;
 	});
-	list.resize(256);
 
-	map<int, int> dict;
+	int selected[256];
+
+	for (int i = 0; i < 256; i++) {
+		uchar b = (list[i].first >> 10) << 3;
+		uchar g = ((list[i].first >> 2) & 0b11111000);
+		uchar r = (list[i].first & 0b11111) << 3;
+
+		selected[i] = (b << 16) + (g << 8) + r;
+	}
+
 	for (int i = 0; i < img_height; i++)
 	{
 		for (int j = 0; j < img_width; j++)
@@ -244,35 +254,40 @@ void Application::Quant_Populosity()
 			int offset_rgb = i * img_width * 3 + j * 3;
 			int offset_rgba = i * img_width * 4 + j * 4;
 
-			double mDist = DBL_MAX;
-			int mIdx = 0;
-			int color[3];
-			int c = rgb[offset_rgb + bb] * 256 * 256 + rgb[offset_rgb + gg] * 256 + rgb[offset_rgb + rr];
-			if (dict.find(c) != dict.end()) {
-				color[0] = dict[c] / 256 / 256;
-				color[1] = (dict[c] / 256) % 256;
-				color[2] = dict[c] % 256;
+			int mDist = INT_MAX;
+
+			int c = ((rgb[offset_rgb + bb] & 0b11111000) << 8) + ((rgb[offset_rgb + gg] & 0b11111100) << 3) + ((rgb[offset_rgb + rr] & 0b11111000) >> 3);
+
+			if (c >= list.size()) {
+				continue;
 			}
-			else {
+
+			if (list[c].second != -1) {
+
+				int mIdx = 0;
+
 				for (int k = 0; k < 256; k++) {
-					int b = list[k].first / 256 / 256;
-					int g = (list[k].first / 256) % 256;
-					int r = list[k].first % 256;
-					int dist = sqrt(pow(b - rgb[offset_rgb + bb], 2) + pow(g - rgb[offset_rgb + gg], 2) + pow(r - rgb[offset_rgb + rr], 2));
+					uchar b = selected[k] >> 16;
+					uchar g = (selected[k] >> 8) & 255;
+					uchar r = selected[k] & 255;
+
+					int dist = (pow(b - rgb[offset_rgb + bb], 2) + pow(g - rgb[offset_rgb + gg], 2) + pow(r - rgb[offset_rgb + rr], 2));
+					
 					if (dist < mDist) {
 						mDist = dist;
-						color[0] = b;
-						color[1] = g;
-						color[2] = r;
 						mIdx = k;
 					}
 				}
-				dict[c] = list[mIdx].first;
+
+				list[c].first = selected[mIdx];
+
+				list[c].second = -1;
 			}
 
-			for (int k = 0; k < 3; k++) {
-				img_data[offset_rgba + k] = color[k];
-			}
+			img_data[offset_rgba] = list[c].first >> 16;
+			img_data[offset_rgba + 1] = (list[c].first >> 8) & 255;
+			img_data[offset_rgba + 2] = list[c].first & 255;
+
 			img_data[offset_rgba + aa] = WHITE;
 		}
 	}

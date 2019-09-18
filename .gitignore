@@ -2,6 +2,8 @@
 x64/
 Win32/
 Debug/
-Qt_Opengl_Framework.sln
-Qt_Opengl_Framework/Qt_Opengl_Framework.vcxproj
-Qt_Opengl_Framework/Qt_Opengl_Framework.vcxproj.user
+
+*.sln
+*.vcxproj
+*.vcxproj.user
+*.vscode/
