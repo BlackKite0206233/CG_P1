@@ -362,6 +362,12 @@ void Application::Dither_Random()
 //  operation.
 //
 ///////////////////////////////////////////////////////////////////////////////
+
+double distribution[] = { 7.0 / 16.0, 
+							3.0 / 16.0, 
+							5.0 / 16.0, 
+							1.0 / 16.0 };
+
 void Application::Dither_FS()
 {
 	unsigned char *rgb = this->To_RGB();
@@ -388,7 +394,6 @@ void Application::Dither_FS()
 		for (int j = ((i % 2) ? img_width - 1 : 0); j >= 0 && j < img_width; j += ((i % 2) ? -1 : 1))
 		{
 			int offset_gray = i * img_width + j;
-			int offset_rgb = i * img_width * 3 + j * 3;
 			int offset_rgba = i * img_width * 4 + j * 4;
 			unsigned char value = gray[offset_gray] >= 128 ? WHITE : BLACK;
 			double error = gray[offset_gray] - value;
@@ -524,13 +529,8 @@ void Application::Dither_Color()
 {
 	unsigned char *rgb = this->To_RGB();
 
-	double distribution[] = { 7.0 / 16.0, 
-							3.0 / 16.0, 
-							5.0 / 16.0, 
-							1.0 / 16.0 };
-
-	double* RGB0 = new double[img_width*3];
-	double* RGB1 = new double[img_width*3];
+	double* RGB0 = new double[img_width * 3];
+	double* RGB1 = new double[img_width * 3];
 
 	for (int col = 0; col < img_width; col++) {
 		int offset_row_rgb = col * 3;
@@ -742,9 +742,24 @@ void Application::Filter_Gaussian_N( unsigned int N )
 	for (int i = 0; i < N; i++) {
 		filter[i] = new double[N];
 	}
-	for (int i = 0; i < N / 2; i++) {
-		for (int j = 0; j < N / 2; j++) {
-			filter[i][j] = filter[i][N - j - 1] = filter[N - i - 1][j] = filter[N - i - 1][N - j - 1] = exp(-(pow(i - N / 2, 2) + pow(j - N / 2, 2)));
+	int n = 1;
+	for (int i = 2; i < N; i++) {
+		n *= i;
+	}
+	for (i = 0; i <= N / 2; i++) {
+		int p = 1;
+		for (int j = 2; j <= i; j++) {
+			p *= j;
+		}
+		int k = 1;
+		for (int j = 2; j <= N - i - 1; j++) {
+			k *= j;
+		}
+		filter[0][i] = filter[0][N - i - 1] = n / p / k;
+	}
+	for (int i = 1; i < N; i++) {
+		for (int j = 0; j <= N / 2; j++) {
+			filter[i][j] = filter[i][N - j - 1] = filter[0][j] * filter[0][i];
 		}
 	}
 	filtering(filter, N);
@@ -757,7 +772,14 @@ void Application::Filter_Gaussian_N( unsigned int N )
 ///////////////////////////////////////////////////////////////////////////////
 void Application::Filter_Edge()
 {
-
+	double filter[5][5] = {
+		{-1, -4, -6, -4, -1},
+		{-4, -16, -24, -16, -4},
+		{-6, -24, 476, -24, -6},
+		{-4, -16, -24, -16, -4},
+		{-1, -4, -6, -4, -1},
+	};
+	filtering(filter);
 }
 ///////////////////////////////////////////////////////////////////////////////
 //
