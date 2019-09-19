@@ -614,14 +614,16 @@ void Application::Dither_Color()
 //     Filtering the img_data array by the filter from the parameters
 //
 ///////////////////////////////////////////////////////////////////////////////
-void Application::filtering( double filter[][5] )
+void Application::filtering( double filter[][5], double weight )
 {
 	unsigned char *rgb = this->To_RGB();
 
-	double weight = 0;
-	for (int i = 0; i < 5; i++) {
-		for (int j = 0; j < 5; j++) {
-			weight += filter[i][j];
+	if (weight == -1) {
+		weight = 0;
+		for (int i = 0; i < 5; i++) {
+			for (int j = 0; j < 5; j++) {
+				weight += filter[i][j];
+			}
 		}
 	}
 
@@ -651,14 +653,16 @@ void Application::filtering( double filter[][5] )
 	renew();
 }
 
-void Application::filtering( double **filter, int N )
+void Application::filtering( double **filter, int N, double weight )
 {
 	unsigned char *rgb = this->To_RGB();
 
-	double weight = 0;
-	for (int i = 0; i < N; i++) {
-		for (int j = 0; j < N; j++) {
-			weight += filter[i][j];
+	if (weight == -1) {
+		weight = 0;
+		for (int i = 0; i < 5; i++) {
+			for (int j = 0; j < 5; j++) {
+				weight += filter[i][j];
+			}
 		}
 	}
 
@@ -746,7 +750,7 @@ void Application::Filter_Gaussian_N( unsigned int N )
 	for (int i = 2; i < N; i++) {
 		n *= i;
 	}
-	for (i = 0; i <= N / 2; i++) {
+	for (int i = 0; i <= N / 2; i++) {
 		int p = 1;
 		for (int j = 2; j <= i; j++) {
 			p *= j;
@@ -772,14 +776,31 @@ void Application::Filter_Gaussian_N( unsigned int N )
 ///////////////////////////////////////////////////////////////////////////////
 void Application::Filter_Edge()
 {
+	/*double filter[5][5] = {
+		{-1, -4, -6, -4, -1},
+		{-4, -16, -24, -16, -4},
+		{-6, -24, 220, -24, -6},
+		{-4, -16, -24, -16, -4},
+		{-1, -4, -6, -4, -1},
+	};*/
+	/*double filter[5][5];
+	for (int i = 0; i < 5; i++) {
+		for (int j = 0; j < 5; j++) {
+			filter[i][j] = -1;
+		}
+	}
+	filter[2][2] = 24
+	*/
 	double filter[5][5] = {
-		{-1, -4, -6, -4, -1},
-		{-4, -16, -24, -16, -4},
-		{-6, -24, 476, -24, -6},
-		{-4, -16, -24, -16, -4},
-		{-1, -4, -6, -4, -1},
+		{0, 0, -1, 0, 0},
+		{0, -2, -4, -2, 0},
+		{-1, -4, 28, -4, -1},
+		{0, -2, -4, -2, 0},
+		{0, 0, -1, 0, 0},
 	};
-	filtering(filter);
+
+	filtering(filter, 256);
+	Gray();
 }
 ///////////////////////////////////////////////////////////////////////////////
 //
