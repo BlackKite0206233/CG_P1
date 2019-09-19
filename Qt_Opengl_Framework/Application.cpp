@@ -385,7 +385,7 @@ void Application::Dither_FS()
 				x[j] *= -1;
 			}
 		}
-		for (int j = ((i % 2) ? img_width - 1 : 0); j >= 0 && j < img_width; j += ((i % 2) ? 1 : 1))
+		for (int j = ((i % 2) ? img_width - 1 : 0); j >= 0 && j < img_width; j += ((i % 2) ? -1 : 1))
 		{
 			int offset_gray = i * img_width + j;
 			int offset_rgb = i * img_width * 3 + j * 3;
@@ -397,7 +397,10 @@ void Application::Dither_FS()
 			img_data[offset_rgba + aa] = WHITE;
 			for (int k = 0; k < 4; k++) {
 				if (i + y[k] >= 0 && i + y[k] < img_height && j + x[k] >= 0 && j + x[k] < img_width) {
-					gray[(i + y[k]) * img_width + j + x[k]] += error * distribution[k];
+					int idx = (i + y[k]) * img_width + j + x[k];
+					if ((gray[idx] += error * distribution[k]) > 255) {
+						gray[idx] = 255;
+					}
 				}
 			}
 		}
@@ -491,53 +494,111 @@ void Application::Dither_Cluster()
 //  Return success of operation.
 //
 ///////////////////////////////////////////////////////////////////////////////
+unsigned char QUANTIZATION_RG[8] = { 0, 36, 73, 109, 146, 182, 219, 255 };
+unsigned char QUANTIZATION_B[4] = { 0, 85, 170, 255 };
+
+unsigned char GetNearestColor(char type, double color) {
+	unsigned char idx;
+	unsigned char* quatization_ptr;
+	unsigned char quaization_limit;
+
+	if (type == 0) {
+		idx = color / 85;
+		quatization_ptr = QUANTIZATION_B;
+		quaization_limit = 3;
+	}
+	else {
+		idx = color / 36;
+		quatization_ptr = QUANTIZATION_RG;
+		quaization_limit = 7;
+	}
+
+	if ((idx < quaization_limit) && (color - quatization_ptr[idx] < quatization_ptr[idx + 1] - color)) {
+		return quatization_ptr[idx + 1];
+	}
+
+	return quatization_ptr[idx];
+
+}
 void Application::Dither_Color()
 {
 	unsigned char *rgb = this->To_RGB();
 
-	vector<double> RGB;
-	for (int i = 0; i < img_height; i++)
-	{
-		for (int j = 0; j < img_width; j++)
-		{
-			int offset_rgb = i * img_width * 3 + j * 3;
-			for (int k = 0; k < 3; k++) {
-				RGB.push_back(rgb[offset_rgb + k]);
-			}
-		}
+	double distribution[] = { 7.0 / 16.0, 
+							3.0 / 16.0, 
+							5.0 / 16.0, 
+							1.0 / 16.0 };
+
+	double* RGB0 = new double[img_width*3];
+	double* RGB1 = new double[img_width*3];
+
+	for (int col = 0; col < img_width; col++) {
+		int offset_row_rgb = col * 3;
+		RGB1[offset_row_rgb] = rgb[offset_row_rgb];
+		RGB1[offset_row_rgb + 1] = rgb[offset_row_rgb + 1];
+		RGB1[offset_row_rgb + 2] = rgb[offset_row_rgb + 2];
 	}
 
-	double distribution[] = { 7.0 / 16.0, 3.0 / 16.0, 5.0 / 16.0, 1.0 / 16.0 };
-	int level[] = { 4, 8, 8 };
 	for (int i = 0; i < img_height; i++)
 	{
+		// store RGB to double
+		double* tmpRGBptr = RGB0;
+		RGB0 = RGB1;
+		RGB1 = tmpRGBptr;
+
+		for (int col = 0; col < img_width; col++) {
+			int offset_row_rgb = col * 3;
+			int offset_rgb = i * img_width * 3 + offset_row_rgb;
+
+			RGB1[offset_row_rgb] = rgb[offset_rgb];
+			RGB1[offset_row_rgb + 1] = rgb[offset_rgb + 1];
+			RGB1[offset_row_rgb + 2] = rgb[offset_rgb + 2];
+		}
+
 		int x[] = { 1, -1, 0, 1 };
 		int y[] = { 0, 1, 1, 1 };
-		if (i % 2) {
+
+		if (i & 1) {
 			for (int j = 0; j < 4; j++) {
 				x[j] *= -1;
 			}
 		}
-		for (int j = ((i % 2) ? img_width - 1 : 0); j >= 0 && j < img_width; j += ((i % 2) ? 1 : 1))
+
+		double error[3];
+		for (int j = ((i & 1) ? img_width - 1 : 0); j >= 0 && j < img_width; j += ((i & 1) ? -1 : 1))
 		{
-			int offset_rgb = i * img_width * 3 + j * 3;
+			int offset_row_rgb = j * 3;
 			int offset_rgba = i * img_width * 4 + j * 4;
-			unsigned char color[3];
-			double error[3];
+
 			for (int k = 0; k < 3; k++) {
-				int q = 256 / level[k];
-				color[k] = ((unsigned char)RGB[offset_rgb + k] / q) * q;
-				error[k] = RGB[offset_rgb + k] - color[k];
-				img_data[offset_rgba + k] = color[k];
+				unsigned char color = GetNearestColor(k, RGB0[offset_row_rgb + k]);
+
+				error[k] = RGB0[offset_row_rgb + k] - color;
+				img_data[offset_rgba + k] = color;
 			}
+
 			img_data[offset_rgba + aa] = WHITE;
+
+			// begin macro
+#define PASSING_RGB_ERROR(__IDX__, __RGB__, __RGB_IDX__) if (i + y[__IDX__] >= 0 && i + y[__IDX__] < img_height && j + x[__IDX__] >= 0 && j + x[__IDX__] < img_width) { \
+															for (int l = 0; l < 3; l++) { \
+																if ((__RGB__[__RGB_IDX__ + l] += error[l] * distribution[__IDX__]) > 255) \
+																{ \
+																	__RGB__[__RGB_IDX__ + l] = 255; \
+																} \
+															} \
+														}
+			// end of macro
 			for (int k = 0; k < 4; k++) {
-				if (i + y[k] >= 0 && i + y[k] < img_height && j + x[k] >= 0 && j + x[k] < img_width) {
-					for (int l = 0; l < 3; l++) {
-						RGB[(i + y[k]) * img_width * 3 + (j + x[k]) * 3 + l] += error[l] * distribution[k];
-					}
+				int idx = (j + x[k]) * 3;
+				if (y[k] == 0) {
+					PASSING_RGB_ERROR(k, RGB0, idx);
+				}
+				else {
+					PASSING_RGB_ERROR(k, RGB1, idx);
 				}
 			}
+			
 		}
 	}
 
