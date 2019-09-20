@@ -616,48 +616,14 @@ void Application::Dither_Color()
 ///////////////////////////////////////////////////////////////////////////////
 void Application::filtering( double filter[][5], double weight )
 {
-	unsigned char *rgb = this->To_RGB();
-
-	if (weight == -1) {
-		weight = 0;
-		for (int i = 0; i < 5; i++) {
-			for (int j = 0; j < 5; j++) {
-				weight += filter[i][j];
-			}
+	double **f = new double*[5];
+	for (int i = 0; i < 5; i++) {
+		f[i] = new double[5];
+		for (int j = 0; j < 5; j++) {
+			f[i][j] = filter[i][j];
 		}
 	}
-
-	for (int i = 0; i < img_height; i++)
-	{
-		for (int j = 0; j < img_width; j++)
-		{
-			int offset_rgb = i * img_width * 3 + j * 3;
-			int offset_rgba = i * img_width * 4 + j * 4;
-			for (int k = 0; k < 3; k++) {
-				double sum = 0;
-				for (int m = -2; m <= 2; m++) {
-					for (int n = -2; n <= 2; n++) {
-						if (i + m >= 0 && i + m < img_height && j + n >= 0 && j + n < img_width) {
-							sum += rgb[(i + m) * img_width * 3 + (j + n) * 3 + k] * filter[m + 2][n + 2];
-						}
-					}
-				}
-				sum /= weight;
-				if (sum > 255) {
-					sum = 255;
-				}
-				else if (sum < 0) {
-					sum = 0;
-				}
-				img_data[offset_rgba + k] = sum;
-			}
-			img_data[offset_rgba + aa] = WHITE;
-		}
-	}
-
-	delete[] rgb;
-	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
-	renew();
+	filtering(filter, 5, weight);
 }
 
 void Application::filtering( double **filter, int N, double weight )
@@ -766,15 +732,13 @@ void Application::Filter_Gaussian_N( unsigned int N )
 		n *= i;
 	}
 	for (int i = 0; i <= N / 2; i++) {
-		int p = 1;
 		for (int j = 2; j <= i; j++) {
-			p *= j;
+			n /= j;
 		}
-		int k = 1;
 		for (int j = 2; j <= N - i - 1; j++) {
-			k *= j;
+			n /= j;
 		}
-		filter[0][i] = filter[0][N - i - 1] = n / p / k;
+		filter[0][i] = filter[0][N - i - 1] = n;
 	}
 	for (int i = 1; i < N; i++) {
 		for (int j = 0; j <= N / 2; j++) {
@@ -792,11 +756,11 @@ void Application::Filter_Gaussian_N( unsigned int N )
 void Application::Filter_Edge()
 {
 	double filter[5][5] = {
-		{-1, -4, -6, -4, -1},
+		{-1, -4,   -6,  -4, -1},
 		{-4, -16, -24, -16, -4},
 		{-6, -24, 220, -24, -6},
 		{-4, -16, -24, -16, -4},
-		{-1, -4, -6, -4, -1},
+		{-1, -4,   -6,  -4, -1},
 	};
 
 	filtering(filter, 256);
@@ -810,11 +774,11 @@ void Application::Filter_Edge()
 void Application::Filter_Enhance()
 {
 	double filter[5][5] = {
-		{1, 4, 6, 4, 1},
-		{4, 16, 24, 16, 4},
+		{1,  4,    6,  4, 1},
+		{4, 16,   24, 16, 4},
 		{6, 24, -476, 24, 6},
-		{4, 16, 24, 16, 4},
-		{1, 4, 6, 4, 1},
+		{4, 16,   24, 16, 4},
+		{1,  4,    6,  4, 1},
 	};
 	filtering(filter, -256);
 }
@@ -828,8 +792,7 @@ void Application::Filter_Enhance()
 ///////////////////////////////////////////////////////////////////////////////
 void Application::Half_Size()
 {
-	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
-	renew();
+	Resize(0.5);
 }
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -838,8 +801,7 @@ void Application::Half_Size()
 ///////////////////////////////////////////////////////////////////////////////
 void Application::Double_Size()
 {
-	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
-	renew();
+	Resize(2);
 }
 ///////////////////////////////////////////////////////////////////////////////
 //
