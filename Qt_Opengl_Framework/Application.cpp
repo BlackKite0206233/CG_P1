@@ -626,6 +626,18 @@ void Application::filtering( double filter[][5], double weight )
 	filtering(filter, 5, weight);
 }
 
+double getFilterSum(double **filter, int M, int N, unsigned char *rgb, int height, int width, int x, int y, int channel) {
+	double sum = 0; 
+	for (int i = 0; i < M; i++) {
+		for (int j = 0; j < N; j++) {
+			if (x + i >= 0 && x + i < height && y + j >= 0 && y + j < width) {
+				sum += rgb[(x + i) * width * 3 + (y + j) * 3 + channel] * filter[i][j];
+			}
+		}
+	}
+	return sum;
+}
+
 void Application::filtering( double **filter, int N, double weight )
 {
 	unsigned char *rgb = this->To_RGB();
@@ -646,14 +658,7 @@ void Application::filtering( double **filter, int N, double weight )
 			int offset_rgb = i * img_width * 3 + j * 3;
 			int offset_rgba = i * img_width * 4 + j * 4;
 			for (int k = 0; k < 3; k++) {
-				double sum = 0;
-				for (int m = -N / 2; m <= N / 2; m++) {
-					for (int n = -N / 2; n <= N / 2; n++) {
-						if (i + m >= 0 && i + m < img_height && j + n >= 0 && j + n < img_width) {
-							sum += rgb[(i + m) * img_width * 3 + (j + n) * 3 + k] * filter[m + N / 2][n + N / 2];
-						}
-					}
-				}
+				double sum = getFilterSum(filter, N, N, rgb, img_height, img_width, i - N / 2, j - N / 2, k);
 				sum /= weight;
 				if (sum > 255) {
 					sum = 255;
@@ -792,7 +797,36 @@ void Application::Filter_Enhance()
 ///////////////////////////////////////////////////////////////////////////////
 void Application::Half_Size()
 {
-	Resize(0.5);
+	unsigned char *rgb = this->To_RGB();
+
+	double filter[3][3] = {
+		{1 / 16.0, 1 / 8.0, 1 / 16.0},
+		{1 / 8.0,  1 / 4.0, 1 / 8.0},
+		{1 / 16.0, 1 / 8.0, 1 / 16.0},
+	}
+
+	int newHeight = img_height / 2;
+	int newWidth = img_width / 2;
+	unsigned char* newImg[] = new unsigned char[newHeight * newWidth * 4];
+
+	for (int i = 0; i < newHeight; i++) {
+		for (int j = 0; j < newWidth; j++) {
+			int offset_rgba = i * newWidth * 4 + j * 4;
+
+			for (int k = 0; k < 3; k++) {
+				double sum = getFilterSum(filter, 3, 3, rgb, img_height, img_width, i * 2 - 1, j * 2 - 1, k);
+				if (sum > 255) {
+					sum = 255;
+				}
+				newImg[offset_rgba + k] = sum;
+			}
+			newImg[offset_rgba + aa] = WHITE;
+		}
+	}
+
+	delete[] rgb;
+	mImageDst = QImage(newImg, newWidth, newHeight, QImage::Format_ARGB32 );
+	renew();
 }
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -801,7 +835,55 @@ void Application::Half_Size()
 ///////////////////////////////////////////////////////////////////////////////
 void Application::Double_Size()
 {
-	Resize(2);
+	unsigned char *rgb = this->To_RGB();
+
+	double filter1[3][3] = {
+		{1 / 16.0, 1 / 8.0, 1 / 16.0},
+		{1 / 8.0,  1 / 4.0, 1 / 8.0},
+		{1 / 16.0, 1 / 8.0, 1 / 16.0},
+	}
+	double filter2[4][4] = {
+		{1 / 64.0, 3 / 64.0, 3 / 64.0, 1 / 64.0},
+		{3 / 64.0, 9 / 64.0, 9 / 64.0, 3 / 64.0},
+		{3 / 64.0, 9 / 64.0, 9 / 64.0, 3 / 64.0},
+		{1 / 64.0, 3 / 64.0, 3 / 64.0, 1 / 64.0},
+	}
+	double filter3[4][3] = {
+		{1 / 32.0, 2 / 32.0, 1 / 32.0},
+		{3 / 32.0, 6 / 32.0, 3 / 32.0},
+		{3 / 32.0, 6 / 32.0, 3 / 32.0},
+		{1 / 32.0, 2 / 32.0, 1 / 32.0},
+	}
+
+	int newHeight = img_height * 2;
+	int newWidth = img_width * 2;
+	unsigned char* newImg[] = new unsigned char[newHeight * newWidth * 4];
+
+	for (int i = 0; i < newHeight; i++) {
+		for (int j = 0; j < newWidth; j++) {
+			int offset_rgba = i * newWidth * 4 + j * 4;
+
+			for (int k = 0; k < 3; k++) {
+				double sum;
+				if (!(i & 1) && !(j & 1)) {
+					sum = getFilterSum(filter1, 3, 3, rgb, img_height, img_width, i / 2 - 1, j / 2 - 1, k);
+				} else if ((i & 1) && (j & 1)) {
+					sum = getFilterSum(filter2, 4, 4, rgb, img_height, img_width, i / 2 - 1, j / 2 - 1, k);
+				} else {
+					sum = getFilterSum(filter2, 4, 3, rgb, img_height, img_width, i / 2 - 1, j / 2 - 1, k);
+				}
+				if (sum > 255) {
+					sum = 255;
+				}
+				newImg[offset_rgba + k] = sum;
+			}
+			newImg[offset_rgba + aa] = WHITE;
+		}
+	}
+
+	delete[] rgb;
+	mImageDst = QImage(newImg, newWidth, newHeight, QImage::Format_ARGB32 );
+	renew();
 }
 ///////////////////////////////////////////////////////////////////////////////
 //
