@@ -363,6 +363,10 @@ void Application::Dither_Random()
 //
 ///////////////////////////////////////////////////////////////////////////////
 
+bool isInImg(int x, int y, int w, int h) {
+	return x >= 0 && x < w && y >= 0 && y < h;
+}
+
 double distribution[] = { 7.0 / 16.0, 
 							3.0 / 16.0, 
 							5.0 / 16.0, 
@@ -401,7 +405,7 @@ void Application::Dither_FS()
 				img_data[offset_rgba + k] = value;
 			img_data[offset_rgba + aa] = WHITE;
 			for (int k = 0; k < 4; k++) {
-				if (i + y[k] >= 0 && i + y[k] < img_height && j + x[k] >= 0 && j + x[k] < img_width) {
+				if (isInImg(j + x[k], i + y[k], img_width, img_height)) {
 					int idx = (i + y[k]) * img_width + j + x[k];
 					if ((gray[idx] += error * distribution[k]) > 255) {
 						gray[idx] = 255;
@@ -580,7 +584,7 @@ void Application::Dither_Color()
 			img_data[offset_rgba + aa] = WHITE;
 
 			// begin macro
-#define PASSING_RGB_ERROR(__IDX__, __RGB__, __RGB_IDX__) if (i + y[__IDX__] >= 0 && i + y[__IDX__] < img_height && j + x[__IDX__] >= 0 && j + x[__IDX__] < img_width) { \
+#define PASSING_RGB_ERROR(__IDX__, __RGB__, __RGB_IDX__) if (isInImg(j + x[__IDX__], i + y[__IDX__], img_width, img_height)) { \
 															for (int l = 0; l < 3; l++) { \
 																if ((__RGB__[__RGB_IDX__ + l] += error[l] * distribution[__IDX__]) > 255) \
 																{ \
@@ -614,6 +618,7 @@ void Application::Dither_Color()
 //     Filtering the img_data array by the filter from the parameters
 //
 ///////////////////////////////////////////////////////////////////////////////
+
 void Application::filtering( double filter[][5], double weight )
 {
 	double **f = new double*[5];
@@ -623,14 +628,14 @@ void Application::filtering( double filter[][5], double weight )
 			f[i][j] = filter[i][j];
 		}
 	}
-	filtering(filter, 5, weight);
+	filtering(f, 5, weight);
 }
 
 double getFilterSum(double **filter, int M, int N, unsigned char *rgb, int height, int width, int x, int y, int channel) {
 	double sum = 0; 
 	for (int i = 0; i < M; i++) {
 		for (int j = 0; j < N; j++) {
-			if (x + i >= 0 && x + i < height && y + j >= 0 && y + j < width) {
+			if (isInImg(y + j, x + i, width, height)) {
 				sum += rgb[(x + i) * width * 3 + (y + j) * 3 + channel] * filter[i][j];
 			}
 		}
@@ -737,13 +742,14 @@ void Application::Filter_Gaussian_N( unsigned int N )
 		n *= i;
 	}
 	for (int i = 0; i <= N / 2; i++) {
+		int value = n;
 		for (int j = 2; j <= i; j++) {
-			n /= j;
+			value /= j;
 		}
 		for (int j = 2; j <= N - i - 1; j++) {
-			n /= j;
+			value /= j;
 		}
-		filter[0][i] = filter[0][N - i - 1] = n;
+		filter[0][i] = filter[0][N - i - 1] = value;
 	}
 	for (int i = 1; i < N; i++) {
 		for (int j = 0; j <= N / 2; j++) {
@@ -799,15 +805,19 @@ void Application::Half_Size()
 {
 	unsigned char *rgb = this->To_RGB();
 
-	double filter[3][3] = {
+	double f[3][3] = {
 		{1 / 16.0, 1 / 8.0, 1 / 16.0},
 		{1 / 8.0,  1 / 4.0, 1 / 8.0},
 		{1 / 16.0, 1 / 8.0, 1 / 16.0},
+	};
+	double** filter = new double* [3];
+	for (int i = 0; i < 3; i++) {
+		filter[i] = f[i];
 	}
 
 	int newHeight = img_height / 2;
 	int newWidth = img_width / 2;
-	unsigned char* newImg[] = new unsigned char[newHeight * newWidth * 4];
+	unsigned char* newImg = new unsigned char[newHeight * newWidth * 4];
 
 	for (int i = 0; i < newHeight; i++) {
 		for (int j = 0; j < newWidth; j++) {
@@ -823,9 +833,12 @@ void Application::Half_Size()
 			newImg[offset_rgba + aa] = WHITE;
 		}
 	}
+	img_data = newImg;
+	img_width = newWidth;
+	img_height = newHeight;
 
 	delete[] rgb;
-	mImageDst = QImage(newImg, newWidth, newHeight, QImage::Format_ARGB32 );
+	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32);
 	renew();
 }
 ///////////////////////////////////////////////////////////////////////////////
@@ -837,27 +850,40 @@ void Application::Double_Size()
 {
 	unsigned char *rgb = this->To_RGB();
 
-	double filter1[3][3] = {
+	double f1[3][3] = {
 		{1 / 16.0, 1 / 8.0, 1 / 16.0},
 		{1 / 8.0,  1 / 4.0, 1 / 8.0},
 		{1 / 16.0, 1 / 8.0, 1 / 16.0},
-	}
-	double filter2[4][4] = {
+	};
+	double f2[4][4] = {
 		{1 / 64.0, 3 / 64.0, 3 / 64.0, 1 / 64.0},
 		{3 / 64.0, 9 / 64.0, 9 / 64.0, 3 / 64.0},
 		{3 / 64.0, 9 / 64.0, 9 / 64.0, 3 / 64.0},
 		{1 / 64.0, 3 / 64.0, 3 / 64.0, 1 / 64.0},
-	}
-	double filter3[4][3] = {
+	};
+	double f3[4][3] = {
 		{1 / 32.0, 2 / 32.0, 1 / 32.0},
 		{3 / 32.0, 6 / 32.0, 3 / 32.0},
 		{3 / 32.0, 6 / 32.0, 3 / 32.0},
 		{1 / 32.0, 2 / 32.0, 1 / 32.0},
+	};
+
+	double** filter1 = new double* [3];
+	double** filter2 = new double* [4];
+	double** filter3 = new double* [4];
+
+	for (int i = 0; i < 3; i++) {
+		filter1[i] = f1[i];
+		filter2[i] = f2[i];
+		filter3[i] = f3[i];
 	}
+	filter2[3] = f2[3];
+	filter3[3] = f3[3];
+
 
 	int newHeight = img_height * 2;
 	int newWidth = img_width * 2;
-	unsigned char* newImg[] = new unsigned char[newHeight * newWidth * 4];
+	unsigned char* newImg = new unsigned char[newHeight * newWidth * 4];
 
 	for (int i = 0; i < newHeight; i++) {
 		for (int j = 0; j < newWidth; j++) {
@@ -870,7 +896,7 @@ void Application::Double_Size()
 				} else if ((i & 1) && (j & 1)) {
 					sum = getFilterSum(filter2, 4, 4, rgb, img_height, img_width, i / 2 - 1, j / 2 - 1, k);
 				} else {
-					sum = getFilterSum(filter2, 4, 3, rgb, img_height, img_width, i / 2 - 1, j / 2 - 1, k);
+					sum = getFilterSum(filter3, 4, 3, rgb, img_height, img_width, i / 2 - 1, j / 2 - 1, k);
 				}
 				if (sum > 255) {
 					sum = 255;
@@ -880,9 +906,12 @@ void Application::Double_Size()
 			newImg[offset_rgba + aa] = WHITE;
 		}
 	}
+	img_data = newImg;
+	img_width = newWidth;
+	img_height = newHeight;
 
 	delete[] rgb;
-	mImageDst = QImage(newImg, newWidth, newHeight, QImage::Format_ARGB32 );
+	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32);
 	renew();
 }
 ///////////////////////////////////////////////////////////////////////////////
