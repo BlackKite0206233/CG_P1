@@ -888,8 +888,6 @@ void Application::Rotate( float angleDegrees )
 {
 	unsigned char* rgb = this->To_RGB();
 
-	
-
 	double** filter = new double* [4];
 
 	for (int i = 0; i < 4; i++) {
@@ -947,6 +945,14 @@ void Application::loadSecondaryImge( QString filePath )
 	img_height2 = mImageSrcSecond.height();
 }
 
+int Comp_op[5][2] = {
+	{1, 2},
+	{3, 0},
+	{4, 0},
+	{3, 2},
+	{4, 2}
+};
+
 //////////////////////////////////////////////////////////////////////////
 //
 //	Composite the image A and image B by Over, In, Out, Xor and Atom. 
@@ -954,8 +960,37 @@ void Application::loadSecondaryImge( QString filePath )
 //////////////////////////////////////////////////////////////////////////
 void Application::Comp_image( int tMethod )
 {
+	unsigned char* newImg = new unsigned char[img_height * img_width * 4];
+
+	for (int i = 0; i < img_height; i++) {
+		for (int j = 0; j < img_width; j++) {
+			int offset_rgba = i * img_width * 4 + j * 4;
+			for (int k = 0; k < 3; k++) {
+				switch (Comp_op[tMethod][0]) {
+				case 1:
+					newImg[offset_rgba + k] = 1 * img_data[offset_rgba + k];
+					break;
+				case 3:
+					newImg[offset_rgba + k] = (img_data2[offset_rgba + 3] / 255) * img_data[offset_rgba + k];
+					break;
+				case 4:
+					newImg[offset_rgba + k] = (1 - img_data2[offset_rgba + 3] / 255) * img_data[offset_rgba + k];
+					break;
+				default:
+					break;
+				}
+				if (Comp_op[tMethod][1]) {
+					newImg[offset_rgba + k] += (1 - img_data[offset_rgba + 3] / 255) * img_data2[offset_rgba + k];
+				}
+			}
+			newImg[offset_rgba + 3] = WHITE;
+		}
+	}
+	img_data = newImg;
+
 	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
 	renew();
+	delete[] newImg;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -968,7 +1003,7 @@ void Application::Comp_Over()
 {
 	if (img_height == img_height2 && img_width == img_width2)
 	{
-
+		Comp_image(0);
 	}
 	else
 	{
@@ -986,7 +1021,7 @@ void Application::Comp_In()
 {
 	if (img_height == img_height2 && img_width == img_width2)
 	{
-
+		Comp_image(1);
 	}
 	else
 	{
@@ -1004,7 +1039,7 @@ void Application::Comp_Out()
 {
 	if (img_height == img_height2 && img_width == img_width2)
 	{
-
+		Comp_image(2);
 	}
 	else
 	{
@@ -1022,7 +1057,7 @@ void Application::Comp_Atop()
 {
 	if (img_height == img_height2 && img_width == img_width2)
 	{
-
+		Comp_image(3);
 	}
 	else
 	{
@@ -1040,7 +1075,7 @@ void Application::Comp_Xor()
 {
 	if (img_height == img_height2 && img_width == img_width2)
 	{
-
+		Comp_image(4);
 	}
 	else
 	{
