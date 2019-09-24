@@ -55,6 +55,8 @@ void Application::renew()
 	ui_instance = Qt_Opengl_Framework::getInstance();
 
 	ui_instance->ui.label->clear();
+	ui_instance->ui.label->setFixedHeight(img_height);
+	ui_instance->ui.label->setFixedWidth(img_width);
 	ui_instance->ui.label->setPixmap(QPixmap::fromImage(mImageDst));
 
 	std::cout << "Renew" << std::endl;
@@ -803,43 +805,7 @@ void Application::Filter_Enhance()
 ///////////////////////////////////////////////////////////////////////////////
 void Application::Half_Size()
 {
-	unsigned char *rgb = this->To_RGB();
-
-	double f[3][3] = {
-		{1 / 16.0, 1 / 8.0, 1 / 16.0},
-		{1 / 8.0,  1 / 4.0, 1 / 8.0},
-		{1 / 16.0, 1 / 8.0, 1 / 16.0},
-	};
-	double** filter = new double* [3];
-	for (int i = 0; i < 3; i++) {
-		filter[i] = f[i];
-	}
-
-	int newHeight = img_height / 2;
-	int newWidth = img_width / 2;
-	unsigned char* newImg = new unsigned char[newHeight * newWidth * 4];
-
-	for (int i = 0; i < newHeight; i++) {
-		for (int j = 0; j < newWidth; j++) {
-			int offset_rgba = i * newWidth * 4 + j * 4;
-
-			for (int k = 0; k < 3; k++) {
-				double sum = getFilterSum(filter, 3, 3, rgb, img_height, img_width, i * 2 - 1, j * 2 - 1, k);
-				if (sum > 255) {
-					sum = 255;
-				}
-				newImg[offset_rgba + k] = sum;
-			}
-			newImg[offset_rgba + aa] = WHITE;
-		}
-	}
-	img_data = newImg;
-	img_width = newWidth;
-	img_height = newHeight;
-
-	delete[] rgb;
-	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32);
-	renew();
+	Resize(0.5);
 }
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -848,71 +814,7 @@ void Application::Half_Size()
 ///////////////////////////////////////////////////////////////////////////////
 void Application::Double_Size()
 {
-	unsigned char *rgb = this->To_RGB();
-
-	double f1[3][3] = {
-		{1 / 16.0, 1 / 8.0, 1 / 16.0},
-		{1 / 8.0,  1 / 4.0, 1 / 8.0},
-		{1 / 16.0, 1 / 8.0, 1 / 16.0},
-	};
-	double f2[4][4] = {
-		{1 / 64.0, 3 / 64.0, 3 / 64.0, 1 / 64.0},
-		{3 / 64.0, 9 / 64.0, 9 / 64.0, 3 / 64.0},
-		{3 / 64.0, 9 / 64.0, 9 / 64.0, 3 / 64.0},
-		{1 / 64.0, 3 / 64.0, 3 / 64.0, 1 / 64.0},
-	};
-	double f3[4][3] = {
-		{1 / 32.0, 2 / 32.0, 1 / 32.0},
-		{3 / 32.0, 6 / 32.0, 3 / 32.0},
-		{3 / 32.0, 6 / 32.0, 3 / 32.0},
-		{1 / 32.0, 2 / 32.0, 1 / 32.0},
-	};
-
-	double** filter1 = new double* [3];
-	double** filter2 = new double* [4];
-	double** filter3 = new double* [4];
-
-	for (int i = 0; i < 3; i++) {
-		filter1[i] = f1[i];
-		filter2[i] = f2[i];
-		filter3[i] = f3[i];
-	}
-	filter2[3] = f2[3];
-	filter3[3] = f3[3];
-
-
-	int newHeight = img_height * 2;
-	int newWidth = img_width * 2;
-	unsigned char* newImg = new unsigned char[newHeight * newWidth * 4];
-
-	for (int i = 0; i < newHeight; i++) {
-		for (int j = 0; j < newWidth; j++) {
-			int offset_rgba = i * newWidth * 4 + j * 4;
-
-			for (int k = 0; k < 3; k++) {
-				double sum;
-				if (!(i & 1) && !(j & 1)) {
-					sum = getFilterSum(filter1, 3, 3, rgb, img_height, img_width, i / 2 - 1, j / 2 - 1, k);
-				} else if ((i & 1) && (j & 1)) {
-					sum = getFilterSum(filter2, 4, 4, rgb, img_height, img_width, i / 2 - 1, j / 2 - 1, k);
-				} else {
-					sum = getFilterSum(filter3, 4, 3, rgb, img_height, img_width, i / 2 - 1, j / 2 - 1, k);
-				}
-				if (sum > 255) {
-					sum = 255;
-				}
-				newImg[offset_rgba + k] = sum;
-			}
-			newImg[offset_rgba + aa] = WHITE;
-		}
-	}
-	img_data = newImg;
-	img_width = newWidth;
-	img_height = newHeight;
-
-	delete[] rgb;
-	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32);
-	renew();
+	Resize(2);
 }
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -924,6 +826,13 @@ void Application::resample_src(int u, int v, float ww, unsigned char* rgba)
 
 }
 
+double resize_rotate_filter[4][4] = {
+		{1 / 64.0, 3 / 64.0, 3 / 64.0, 1 / 64.0},
+		{3 / 64.0, 9 / 64.0, 9 / 64.0, 3 / 64.0},
+		{3 / 64.0, 9 / 64.0, 9 / 64.0, 3 / 64.0},
+		{1 / 64.0, 3 / 64.0, 3 / 64.0, 1 / 64.0},
+};
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 //  Scale the image dimensions by the given factor.  The given factor is 
@@ -932,8 +841,41 @@ void Application::resample_src(int u, int v, float ww, unsigned char* rgba)
 ///////////////////////////////////////////////////////////////////////////////
 void Application::Resize( float scale )
 {
-	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
+	unsigned char* rgb = this->To_RGB();
+
+	double** filter = new double* [4];
+
+	for (int i = 0; i < 4; i++) {
+		filter[i] = resize_rotate_filter[i];
+	}
+
+	int newHeight = img_height * scale;
+	int newWidth = img_width * scale;
+	unsigned char* newImg = new unsigned char[newHeight * newWidth * 4];
+
+	for (int i = 0; i < newHeight; i++) {
+		for (int j = 0; j < newWidth; j++) {
+			int offset_rgba = i * newWidth * 4 + j * 4;
+
+			for (int k = 0; k < 3; k++) {
+				double sum;
+				sum = getFilterSum(filter, 4, 4, rgb, img_height, img_width, i / scale - 1, j / scale - 1, k);
+				if (sum > 255) {
+					sum = 255;
+				}
+				newImg[offset_rgba + k] = sum;
+			}
+			newImg[offset_rgba + aa] = WHITE;
+		}
+	}
+	img_data = newImg;
+	img_width = newWidth;
+	img_height = newHeight;
+
+	delete[] rgb;
+	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32);
 	renew();
+	delete[] newImg;
 }
 
 //////////////////////////////////////////////////////////////////////////////
@@ -944,8 +886,51 @@ void Application::Resize( float scale )
 ///////////////////////////////////////////////////////////////////////////////
 void Application::Rotate( float angleDegrees )
 {
+	unsigned char* rgb = this->To_RGB();
+
+	
+
+	double** filter = new double* [4];
+
+	for (int i = 0; i < 4; i++) {
+		filter[i] = resize_rotate_filter[i];
+	}
+
+	int ox = img_width / 2;
+	int oy = img_height / 2;
+	double rad = -angleDegrees * M_PI / 180;
+
+	unsigned char* newImg = new unsigned char[img_height * img_width * 4];
+
+	for (int i = 0; i < img_height; i++) {
+		for (int j = 0; j < img_width; j++) {
+			int offset_rgba = i * img_width * 4 + j * 4;
+			int dx = j - ox;
+			int dy = i - oy;
+			int x = oy + dy * cos(rad) - dx * sin(rad);
+			int y = ox + dy * sin(rad) + dx * cos(rad);
+			if (isInImg(y, x, img_width, img_height)) {
+				for (int k = 0; k < 3; k++) {
+					double sum;
+					sum = getFilterSum(filter, 4, 4, rgb, img_height, img_width, x - 1, y - 1, k);
+					if (sum > 255) {
+						sum = 255;
+					}
+					newImg[offset_rgba + k] = sum;
+				}
+			}
+			else {
+				newImg[offset_rgba + 0] = newImg[offset_rgba + 1] = newImg[offset_rgba + 2] = WHITE;
+			}
+			newImg[offset_rgba + aa] = WHITE;
+		}
+	}
+	img_data = newImg;
+
+	delete[] rgb;
 	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
 	renew();
+	delete[] newImg;
 }
 
 //------------------------Composing------------------------
