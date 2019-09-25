@@ -981,16 +981,16 @@ void Application::Comp_image( int tMethod )
 					newImg[offset_rgba + k] = 1 * img_data[offset_rgba + k];
 					break;
 				case 3:
-					newImg[offset_rgba + k] = (img_data2[offset_rgba + 3] / 255) * img_data[offset_rgba + k];
+					newImg[offset_rgba + k] = (img_data2[offset_rgba + 3] / 255.0) * img_data[offset_rgba + k];
 					break;
 				case 4:
-					newImg[offset_rgba + k] = (1 - img_data2[offset_rgba + 3] / 255) * img_data[offset_rgba + k];
+					newImg[offset_rgba + k] = (1 - img_data2[offset_rgba + 3] / 255.0) * img_data[offset_rgba + k];
 					break;
 				default:
 					break;
 				}
 				if (Comp_op[tMethod][1]) {
-					newImg[offset_rgba + k] += (1 - img_data[offset_rgba + 3] / 255) * img_data2[offset_rgba + k];
+					newImg[offset_rgba + k] += (1 - img_data[offset_rgba + 3] / 255.0) * img_data2[offset_rgba + k];
 				}
 			}
 			newImg[offset_rgba + 3] = WHITE;
@@ -1189,10 +1189,10 @@ void Application::Paint_Stroke( unsigned char* tCanvas, const Stroke& s )
 				} 
 				else if (dist_squared == radius_squared + 1) 
 				{
-					tCanvas[offset_rgba + rr] = (tCanvas[offset_rgba + rr] + s.r) / 2;
-					tCanvas[offset_rgba + gg] = (tCanvas[offset_rgba + gg] + s.g) / 2;
-					tCanvas[offset_rgba + bb] = (tCanvas[offset_rgba + bb] + s.b) / 2;
-					tCanvas[offset_rgba + aa] = (tCanvas[offset_rgba + aa] + s.a) / 2;
+					tCanvas[offset_rgba + rr] = ((int)tCanvas[offset_rgba + rr] + s.r) >> 1;
+					tCanvas[offset_rgba + gg] = ((int)tCanvas[offset_rgba + gg] + s.g) >> 1;
+					tCanvas[offset_rgba + bb] = ((int)tCanvas[offset_rgba + bb] + s.b) >> 1;
+					tCanvas[offset_rgba + aa] = ((int)tCanvas[offset_rgba + aa] + s.a) >> 1;
 				}
 			}
 		}
