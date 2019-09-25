@@ -1107,7 +1107,7 @@ void Application::NPR_Paint()
 {
 	unsigned char* rgb = To_RGB();
 	unsigned char* newImg = new unsigned char[img_height * img_width * 4];
-	vector<int> brushs = vector<int>({ 50, 20, 10, 5 });
+	vector<int> brushs = vector<int>({ 20, 15, 10, 5, 3 });
 
 	for (auto& brush : brushs) {
 		Filter_Gaussian_N(brush, rgb);
@@ -1146,9 +1146,9 @@ void Application::NPR_Paint_Layer( unsigned char *tCanvas, unsigned char *tRefer
 				}
 			}
 			err /= tBrushSize * tBrushSize;
-			if (err > 5) {
+			if (err > 2) {
 				int offest = maxY * img_width * 3 + maxX * 3;
-				s.push_back(Stroke(tBrushSize, maxX, maxY, tReferenceImage[offest + 2], tReferenceImage[offest + 1], tReferenceImage[offest], tReferenceImage[offest + 3]));
+				s.push_back(Stroke(tBrushSize, maxX, maxY, tReferenceImage[offest + 2], tReferenceImage[offest + 1], tReferenceImage[offest], 255));
 			}
 		}
 	}
