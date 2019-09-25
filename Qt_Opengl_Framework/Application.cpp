@@ -621,7 +621,7 @@ void Application::Dither_Color()
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-void Application::filtering( double filter[][5], double weight )
+void Application::filtering( unsigned char* rgb, double filter[][5], double weight )
 {
 	double **f = new double*[5];
 	for (int i = 0; i < 5; i++) {
@@ -630,7 +630,7 @@ void Application::filtering( double filter[][5], double weight )
 			f[i][j] = filter[i][j];
 		}
 	}
-	filtering(f, 5, weight);
+	filtering(rgb, f, 5, weight);
 }
 
 double getFilterSum(double **filter, int M, int N, unsigned char *rgb, int height, int width, int x, int y, int channel) {
@@ -645,10 +645,8 @@ double getFilterSum(double **filter, int M, int N, unsigned char *rgb, int heigh
 	return sum;
 }
 
-void Application::filtering( double **filter, int N, double weight )
+void Application::filtering( unsigned char* rgb, double **filter, int N, double weight )
 {
-	unsigned char *rgb = this->To_RGB();
-
 	if (weight == -1) {
 		weight = 0;
 		for (int i = 0; i < N; i++) {
@@ -680,7 +678,6 @@ void Application::filtering( double **filter, int N, double weight )
 		}
 	}
 
-	delete[] rgb;
 	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
 	renew();
 }
@@ -691,6 +688,7 @@ void Application::filtering( double **filter, int N, double weight )
 ///////////////////////////////////////////////////////////////////////////////
 void Application::Filter_Box()
 {
+	unsigned char* rgb = this->To_RGB();
 	double filter[5][5] = {
 		{1, 1, 1, 1, 1},
 		{1, 1, 1, 1, 1},
@@ -698,7 +696,8 @@ void Application::Filter_Box()
 		{1, 1, 1, 1, 1},
 		{1, 1, 1, 1, 1}
 	};
-	filtering(filter);
+	filtering(rgb, filter);
+	delete[] rgb;
 }
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -708,6 +707,7 @@ void Application::Filter_Box()
 ///////////////////////////////////////////////////////////////////////////////
 void Application::Filter_Bartlett()
 {
+	unsigned char* rgb = this->To_RGB();
 	double filter[5][5] = {
 		{1, 2, 3, 2, 1},
 		{2, 4, 6, 4, 2},
@@ -715,7 +715,8 @@ void Application::Filter_Bartlett()
 		{2, 4, 6, 4, 2},
 		{1, 2, 3, 2, 1},
 	};
-	filtering(filter);
+	filtering(rgb, filter);
+	delete[] rgb;
 }
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -725,7 +726,9 @@ void Application::Filter_Bartlett()
 ///////////////////////////////////////////////////////////////////////////////
 void Application::Filter_Gaussian()
 {
-	Filter_Gaussian_N(5);
+	unsigned char* rgb = this->To_RGB();
+	Filter_Gaussian_N(5, rgb);
+	delete[] rgb;
 }
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -733,8 +736,11 @@ void Application::Filter_Gaussian()
 //  operation.
 //
 ///////////////////////////////////////////////////////////////////////////////
-void Application::Filter_Gaussian_N( unsigned int N )
+void Application::Filter_Gaussian_N( unsigned int N, unsigned char* rgb )
 {
+	if (!rgb) {
+		rgb = To_RGB();
+	}
 	double **filter = new double*[N];
 	for (int i = 0; i < N; i++) {
 		filter[i] = new double[N];
@@ -758,7 +764,7 @@ void Application::Filter_Gaussian_N( unsigned int N )
 			filter[i][j] = filter[i][N - j - 1] = filter[0][j] * filter[0][i];
 		}
 	}
-	filtering(filter, N);
+	filtering(rgb, filter, N);
 }
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -768,6 +774,7 @@ void Application::Filter_Gaussian_N( unsigned int N )
 ///////////////////////////////////////////////////////////////////////////////
 void Application::Filter_Edge()
 {
+	unsigned char* rgb = this->To_RGB();
 	double filter[5][5] = {
 		{-1, -4,   -6,  -4, -1},
 		{-4, -16, -24, -16, -4},
@@ -776,7 +783,8 @@ void Application::Filter_Edge()
 		{-1, -4,   -6,  -4, -1},
 	};
 
-	filtering(filter, 256);
+	filtering(rgb, filter, 256);
+	delete[] rgb;
 }
 ///////////////////////////////////////////////////////////////////////////////
 //
@@ -786,6 +794,7 @@ void Application::Filter_Edge()
 ///////////////////////////////////////////////////////////////////////////////
 void Application::Filter_Enhance()
 {
+	unsigned char* rgb = this->To_RGB();
 	double filter[5][5] = {
 		{1,  4,    6,  4, 1},
 		{4, 16,   24, 16, 4},
@@ -793,7 +802,8 @@ void Application::Filter_Enhance()
 		{4, 16,   24, 16, 4},
 		{1,  4,    6,  4, 1},
 	};
-	filtering(filter, -256);
+	filtering(rgb, filter, -256);
+	delete[] rgb;
 }
 
 //------------------------Size------------------------
@@ -1095,13 +1105,57 @@ void Application::Comp_Xor()
 ///////////////////////////////////////////////////////////////////////////////
 void Application::NPR_Paint()
 {
+	unsigned char* rgb = To_RGB();
+	unsigned char* newImg = new unsigned char[img_height * img_width * 4];
+	vector<int> brushs = vector<int>({ 50, 20, 10, 5 });
+
+	for (auto& brush : brushs) {
+		Filter_Gaussian_N(brush, rgb);
+		NPR_Paint_Layer(newImg, To_RGB(), brush);
+	}
+	img_data = newImg;
+
+	delete[] rgb;
 	mImageDst = QImage(img_data, img_width, img_height, QImage::Format_ARGB32 );
 	renew();
+	delete[] newImg;
 }
 
 void Application::NPR_Paint_Layer( unsigned char *tCanvas, unsigned char *tReferenceImage, int tBrushSize )
 {
-
+	vector<Stroke> s;
+	double* d = new double[img_height * img_width];
+	for (int i = 0; i < img_height * img_width; i++) {
+		d[i] = sqrt(pow(tCanvas[i * 3] - tReferenceImage[i * 3], 2) + pow(tCanvas[i * 3 + 1] - tReferenceImage[i * 3 + 1], 2) + pow(tCanvas[i * 3 + 2] - tReferenceImage[i * 3 + 2], 2));
+	}
+	for (int i = 0; i < img_height; i += tBrushSize) {
+		for (int j = 0; j < img_width; j += tBrushSize) {
+			double err = 0;
+			double max_dist = -1;
+			int maxX, maxY;
+			for (int y = i - tBrushSize / 2; y <= i + tBrushSize / 2; y++) {
+				for (int x = j - tBrushSize / 2; x <= j + tBrushSize / 2; x++) {
+					if (isInImg(x, y, img_width, img_height)) {
+						err += d[y * img_width + x];
+						if (d[y * img_width + x] > max_dist) {
+							max_dist = d[y * img_width + x];
+							maxX = x;
+							maxY = y;
+						}
+					}
+				}
+			}
+			err /= tBrushSize * tBrushSize;
+			if (err > 5) {
+				int offest = maxY * img_width * 3 + maxX * 3;
+				s.push_back(Stroke(tBrushSize, maxX, maxY, tReferenceImage[offest + 2], tReferenceImage[offest + 1], tReferenceImage[offest], tReferenceImage[offest + 3]));
+			}
+		}
+	}
+	random_shuffle(s.begin(), s.end());
+	for (auto& stroke : s) {
+		Paint_Stroke(tCanvas, stroke);
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1110,7 +1164,7 @@ void Application::NPR_Paint_Layer( unsigned char *tCanvas, unsigned char *tRefer
 // the given location
 //
 ///////////////////////////////////////////////////////////////////////////////
-void Application::Paint_Stroke( const Stroke& s )
+void Application::Paint_Stroke( unsigned char* tCanvas, const Stroke& s )
 {
 	int radius_squared = (int)s.radius * (int)s.radius;
 	for (int x_off = -((int)s.radius); x_off <= (int)s.radius; x_off++) 
@@ -1121,24 +1175,24 @@ void Application::Paint_Stroke( const Stroke& s )
 			int y_loc = (int)s.y + y_off;
 
 			// are we inside the circle, and inside the image?
-			if ((x_loc >= 0 && x_loc < img_width && y_loc >= 0 && y_loc < img_height)) 
+			if (isInImg(x_loc, y_loc, img_width, img_height))
 			{
 				int dist_squared = x_off * x_off + y_off * y_off;
 				int offset_rgba = (y_loc * img_width + x_loc) * 4;
 
 				if (dist_squared <= radius_squared) 
 				{
-					img_data[offset_rgba + rr] = s.r;
-					img_data[offset_rgba + gg] = s.g;
-					img_data[offset_rgba + bb] = s.b;
-					img_data[offset_rgba + aa] = s.a;
+					tCanvas[offset_rgba + rr] = s.r;
+					tCanvas[offset_rgba + gg] = s.g;
+					tCanvas[offset_rgba + bb] = s.b;
+					tCanvas[offset_rgba + aa] = s.a;
 				} 
 				else if (dist_squared == radius_squared + 1) 
 				{
-					img_data[offset_rgba + rr] = (img_data[offset_rgba + rr] + s.r) / 2;
-					img_data[offset_rgba + gg] = (img_data[offset_rgba + gg] + s.g) / 2;
-					img_data[offset_rgba + bb] = (img_data[offset_rgba + bb] + s.b) / 2;
-					img_data[offset_rgba + aa] = (img_data[offset_rgba + aa] + s.a) / 2;
+					tCanvas[offset_rgba + rr] = (tCanvas[offset_rgba + rr] + s.r) / 2;
+					tCanvas[offset_rgba + gg] = (tCanvas[offset_rgba + gg] + s.g) / 2;
+					tCanvas[offset_rgba + bb] = (tCanvas[offset_rgba + bb] + s.b) / 2;
+					tCanvas[offset_rgba + aa] = (tCanvas[offset_rgba + aa] + s.a) / 2;
 				}
 			}
 		}

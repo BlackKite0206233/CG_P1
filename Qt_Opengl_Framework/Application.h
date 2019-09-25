@@ -44,12 +44,12 @@ public:
 	void Dither_Color();
 
 	// Filter
-	void filtering(double filter[][5], double weight = -1);
-	void filtering(double **filter, int N, double weight = -1);
+	void filtering(unsigned char* rgb, double filter[][5], double weight = -1);
+	void filtering(unsigned char* rgb, double **filter, int N, double weight = -1);
 	void Filter_Box();
 	void Filter_Bartlett();
 	void Filter_Gaussian();
-	void Filter_Gaussian_N(unsigned int N);
+	void Filter_Gaussian_N(unsigned int N, unsigned char* rgb = 0);
 	void Filter_Edge();
 	void Filter_Enhance();
 
@@ -71,7 +71,7 @@ public:
 
 	// Special
 	void NPR_Paint();
-	void Paint_Stroke(const Stroke& s);
+	void Paint_Stroke(unsigned char* tCanvas, const Stroke& s);
 	void NPR_Paint_Layer(unsigned char *tCanvas, unsigned char *tReferenceImage, int tBrushSize);
 	
 protected:
